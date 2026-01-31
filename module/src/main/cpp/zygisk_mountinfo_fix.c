@@ -10,8 +10,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <errno.h>
 #include <sched.h>
 #include <mntent.h>
@@ -163,14 +161,6 @@ static int is_suspicious_mount(const struct mntent *mnt) {
 // Mount Namespace Management
 // ============================================================================
 
-static int save_mount_namespace(void) {
-    int fd = open("/proc/self/ns/mnt", O_RDONLY | O_CLOEXEC);
-    if (fd < 0) {
-        LOGE("Failed to open /proc/self/ns/mnt: %s", strerror(errno));
-    }
-    return fd;
-}
-
 static int collect_suspicious_mounts(char mounts[][MAX_PATH], int max_count) {
     FILE *mtab = setmntent("/proc/self/mounts", "r");
     if (!mtab) {
@@ -214,8 +204,8 @@ static int create_clean_mount_namespace(void) {
         return -errno;
     }
 
-    if (mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) != 0) {
-        LOGD("mount MS_PRIVATE failed: %s (non-fatal)", strerror(errno));
+    if (mount(NULL, "/", NULL, MS_REC | MS_SLAVE, NULL) == -1) {
+        LOGD("mount MS_SLAVE failed: %s (non-fatal)", strerror(errno));
     }
 
     int count = collect_suspicious_mounts(suspicious_mounts, MAX_MOUNTS);
@@ -258,9 +248,6 @@ static void pre_app_specialize(void *self, void *args) {
 
     LOGI("App is on denylist, applying mount namespace fix");
 
-    // Save current namespace
-    g_state.saved_ns_fd = save_mount_namespace();
-
     // Create clean mount namespace
     if (create_clean_mount_namespace() != 0) {
         LOGE("Failed to create clean mount namespace");
@@ -270,19 +257,14 @@ static void pre_app_specialize(void *self, void *args) {
     if (g_state.api->set_option) {
         g_state.api->set_option(g_state.api->impl, DLCLOSE_MODULE_LIBRARY);
     }
+
+    g_state.api = NULL;
 }
 
 static void post_app_specialize(void *self, const void *args) {
     (void)self;
     (void)args;
-
-    // Cleanup saved namespace FD
-    if (g_state.saved_ns_fd >= 0) {
-        close(g_state.saved_ns_fd);
-        g_state.saved_ns_fd = -1;
-    }
-
-    g_state.api = NULL;
+    // No-op for app processes
 }
 
 static void pre_server_specialize(void *self, void *args) {
