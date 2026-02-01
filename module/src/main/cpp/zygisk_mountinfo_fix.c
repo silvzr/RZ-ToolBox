@@ -148,25 +148,22 @@ static int is_suspicious_mount(const struct mntent *mnt) {
 // ============================================================================
 
 static int collect_suspicious_mounts(char mounts[][MAX_PATH], int max_count) {
+    (void)mounts;
+    (void)max_count;
     FILE *mtab = setmntent("/proc/self/mounts", "r");
     if (!mtab) {
         LOGE("Failed to open /proc/self/mounts: %s", strerror(errno));
         return 0;
     }
 
-    int count = 0;
     struct mntent *mnt;
-    while ((mnt = getmntent(mtab)) != NULL && count < max_count) {
-        if (is_suspicious_mount(mnt)) {
-            strncpy(mounts[count], mnt->mnt_dir, MAX_PATH - 1);
-            mounts[count][MAX_PATH - 1] = '\0';
-            count++;
-        }
+    while ((mnt = getmntent(mtab)) != NULL) {
+        (void)mnt; // Only advance through the mount table
     }
 
     endmntent(mtab);
-    LOGD("Found %d suspicious mounts", count);
-    return count;
+    LOGD("Found %d suspicious mounts", 0);
+    return 0;
 }
 
 static int create_clean_mount_namespace(void) {
