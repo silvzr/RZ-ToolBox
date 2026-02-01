@@ -45,16 +45,14 @@ static module_state_t g_state = {
 // Mount Namespace Management
 // ============================================================================
 
-static void read_single_mount_entry(void) {
+static inline int read_single_mount_entry(void) {
     FILE *mtab = setmntent("/proc/self/mounts", "r");
-    if (!mtab) {
-        LOGE("Failed to open /proc/self/mounts: %s", strerror(errno));
-        return;
-    }
+    if (!mtab) return -1;
 
     (void)getmntent(mtab);
 
     endmntent(mtab);
+    return 0;
 }
 
 // ============================================================================
@@ -68,16 +66,11 @@ static void pre_app_specialize(void *self, void *args) {
     struct app_specialize_args_v5 *app_args = (struct app_specialize_args_v5 *)args;
     (void)app_args; // Can be used to get package name if needed
 
-    if (!g_state.api) {
-        LOGE("API not initialized");
-        return;
-    }
+    if (!g_state.api) return;
 
     // Get process flags from ReZygisk
     uint32_t flags = 0;
-    if (g_state.api->get_flags) {
-        flags = g_state.api->get_flags();
-    }
+    if (g_state.api->get_flags) flags = g_state.api->get_flags();
 
     bool in_denylist = (flags & PROCESS_ON_DENYLIST) == PROCESS_ON_DENYLIST;
     if (!in_denylist) {
@@ -141,8 +134,6 @@ void zygisk_module_entry(void *api_ptr, void *env) {
     
     struct rezygisk_api *api = (struct rezygisk_api *)api_ptr;
     
-    LOGD("Mountinfo leak fix module loading");
-    
     // Store the API for later use
     g_state.api = api;
     
@@ -169,8 +160,6 @@ void zygisk_module_entry(void *api_ptr, void *env) {
  */
 __attribute__((visibility("default")))
 void zygisk_companion_entry(int client_fd) {
-    LOGD("Companion handler called (fd=%d)", client_fd);
-    
     // This module doesn't need companion functionality
     // The mount namespace fix is done entirely in the app process
     // Just close the connection
