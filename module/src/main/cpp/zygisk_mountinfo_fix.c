@@ -62,14 +62,6 @@ static void read_single_mount_entry(void) {
         return;
     }
 
-    struct mntent *entry = getmntent(mtab);
-
-    if (entry) {
-        LOGD("Mount entry: %s -> %s", entry->mnt_fsname, entry->mnt_dir);
-    } else {
-        LOGD("No mount entries found");
-    }
-
     endmntent(mtab);
 }
 
