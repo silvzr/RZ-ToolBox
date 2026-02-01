@@ -39,9 +39,6 @@
 #define CLONE_NEWNS 0x00020000
 #endif
 
-#define MAX_MOUNTS 512
-#define MAX_PATH 512
-
 // ============================================================================
 // Module State
 // ============================================================================
@@ -62,28 +59,25 @@ static module_state_t g_state = {
 // Mount Namespace Management
 // ============================================================================
 
-static int collect_suspicious_mounts(char mounts[][MAX_PATH], int max_count) {
-    (void)mounts;
-    (void)max_count;
+static void read_single_mount_entry(void) {
     FILE *mtab = setmntent("/proc/self/mounts", "r");
     if (!mtab) {
         LOGE("Failed to open /proc/self/mounts: %s", strerror(errno));
-        return 0;
+        return;
     }
 
-    struct mntent *mnt;
-    while ((mnt = getmntent(mtab)) != NULL) {
-        (void)mnt; // Only advance through the mount table
+    struct mntent *entry = getmntent(mtab);
+
+    if (entry) {
+        LOGD("Mount entry: %s -> %s", entry->mnt_fsname, entry->mnt_dir);
+    } else {
+        LOGD("No mount entries found");
     }
 
     endmntent(mtab);
-    LOGD("Found %d suspicious mounts", 0);
-    return 0;
 }
 
 static int create_clean_mount_namespace(void) {
-    static char suspicious_mounts[MAX_MOUNTS][MAX_PATH];
-
     LOGD("Creating clean mount namespace");
 
     if (mount(NULL, "/", NULL, MS_REC | MS_SLAVE, NULL) == -1) {
@@ -95,7 +89,7 @@ static int create_clean_mount_namespace(void) {
         return -errno;
     }
 
-    int count = collect_suspicious_mounts(suspicious_mounts, MAX_MOUNTS);
+    read_single_mount_entry();
 
     return 0;
 }
