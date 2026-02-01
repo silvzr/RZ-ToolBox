@@ -62,20 +62,19 @@ static void read_single_mount_entry(void) {
         return;
     }
 
+    struct mntent *entry = getmntent(mtab);
+
+    if (entry) {
+        LOGD("Mount entry: %s -> %s", entry->mnt_fsname, entry->mnt_dir);
+    } else {
+        LOGD("No mount entries found");
+    }
+
     endmntent(mtab);
 }
 
 static int create_clean_mount_namespace(void) {
     LOGD("Creating clean mount namespace");
-
-    if (mount(NULL, "/", NULL, MS_REC | MS_SLAVE, NULL) == -1) {
-        LOGD("mount MS_SLAVE failed: %s (non-fatal)", strerror(errno));
-    }
-
-    if (unshare(CLONE_NEWNS) != 0) {
-        LOGE("unshare(CLONE_NEWNS) failed: %s", strerror(errno));
-        return -errno;
-    }
 
     read_single_mount_entry();
     return 0;
