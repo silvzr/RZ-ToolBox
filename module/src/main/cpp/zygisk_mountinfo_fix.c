@@ -13,10 +13,8 @@
 #include <errno.h>
 #include <sched.h>
 #include <mntent.h>
-#include <dirent.h>
 #include <sys/stat.h>
 #include <sys/mount.h>
-#include <sys/socket.h>
 #include <android/log.h>
 
 #include "zygisk.h"
@@ -41,10 +39,6 @@
 
 #ifndef CLONE_NEWNS
 #define CLONE_NEWNS 0x00020000
-#endif
-
-#ifndef MNT_DETACH
-#define MNT_DETACH 2
 #endif
 
 #define MAX_MOUNTS 512
@@ -175,17 +169,6 @@ static int collect_suspicious_mounts(char mounts[][MAX_PATH], int max_count) {
     return count;
 }
 
-static void unmount_suspicious_mounts(char mounts[][MAX_PATH], int count) {
-    for (int i = count - 1; i >= 0; i--) {
-        if (mounts[i][0] != '\0') {
-            LOGD("Unmounting: %s", mounts[i]);
-            if (umount2(mounts[i], MNT_DETACH) != 0) {
-                LOGD("umount2 failed for %s: %s", mounts[i], strerror(errno));
-            }
-        }
-    }
-}
-
 static int create_clean_mount_namespace(void) {
     static char suspicious_mounts[MAX_MOUNTS][MAX_PATH];
 
@@ -201,10 +184,6 @@ static int create_clean_mount_namespace(void) {
     }
 
     int count = collect_suspicious_mounts(suspicious_mounts, MAX_MOUNTS);
-    if (count > 0) {
-        unmount_suspicious_mounts(suspicious_mounts, count);
-        LOGI("Cleaned %d suspicious mounts", count);
-    }
 
     return 0;
 }
