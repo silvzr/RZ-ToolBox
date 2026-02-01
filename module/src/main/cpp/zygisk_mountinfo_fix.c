@@ -58,12 +58,14 @@ typedef struct {
     struct rezygisk_api *api;
     bool is_deny_listed;
     int saved_ns_fd;
+    bool is_first_start;
 } module_state_t;
 
 static module_state_t g_state = {
     .api = NULL,
     .is_deny_listed = false,
-    .saved_ns_fd = -1
+    .saved_ns_fd = -1,
+    .is_first_start = false
 };
 
 // ============================================================================
@@ -191,19 +193,19 @@ static int create_clean_mount_namespace(void) {
 
     LOGD("Creating clean mount namespace");
 
-    if (unshare(CLONE_NEWNS) != 0) {
-        LOGE("unshare(CLONE_NEWNS) failed: %s", strerror(errno));
-        return -errno;
-    }
+    if (g_state.is_first_start) {
+        if (mount(NULL, "/", NULL, MS_REC | MS_SLAVE, NULL) == -1) {
+            LOGD("mount MS_SLAVE failed: %s (non-fatal)", strerror(errno));
+        }
 
-    if (mount(NULL, "/", NULL, MS_REC | MS_SLAVE, NULL) == -1) {
-        LOGD("mount MS_SLAVE failed: %s (non-fatal)", strerror(errno));
-    }
-
-    int count = collect_suspicious_mounts(suspicious_mounts, MAX_MOUNTS);
-    if (count > 0) {
-        unmount_suspicious_mounts(suspicious_mounts, count);
-        LOGI("Cleaned %d suspicious mounts", count);
+        if (unshare(CLONE_NEWNS) != 0) {
+            LOGE("unshare(CLONE_NEWNS) failed: %s", strerror(errno));
+            return -errno;
+        }
+    } else {
+        if (mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) == -1) {
+            LOGD("mount MS_PRIVATE failed: %s (non-fatal)", strerror(errno));
+        }
     }
 
     return 0;
@@ -232,6 +234,7 @@ static void pre_app_specialize(void *self, void *args) {
     }
 
     g_state.is_deny_listed = (flags & PROCESS_ON_DENYLIST) != 0;
+    g_state.is_first_start = (flags & PROCESS_IS_FIRST_STARTED) != 0;
 
     if (!g_state.is_deny_listed) {
         LOGD("App not on denylist, skipping mount fix");
@@ -256,6 +259,7 @@ static void post_app_specialize(void *self, const void *args) {
     }
 
     g_state.api = NULL;
+    g_state.is_first_start = false;
 }
 
 static void pre_server_specialize(void *self, void *args) {
