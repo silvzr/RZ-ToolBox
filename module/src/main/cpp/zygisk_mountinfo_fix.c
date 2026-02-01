@@ -71,16 +71,8 @@ static module_state_t g_state = {
 // ============================================================================
 
 static const char *suspicious_patterns[] = {
-    "/sbin/.magisk",
-    "/system/bin/.magisk",
-    "/debug_ramdisk/.magisk",
-    "/data/adb/magisk",
+    "/adb/modules",
     "/data/adb/modules",
-    "/cache/magisk",
-    "/dev/zygisk",
-    "/dev/.zygisk",
-    "/data/adb/ksu",
-    "/data/adb/ap",
     "magisk",
     "KSU",
     "APatch",
@@ -253,18 +245,17 @@ static void pre_app_specialize(void *self, void *args) {
         LOGE("Failed to create clean mount namespace");
     }
 
-    // Tell ReZygisk to unload this library after we're done
-    if (g_state.api->set_option) {
-        g_state.api->set_option(g_state.api->impl, DLCLOSE_MODULE_LIBRARY);
-    }
-
-    g_state.api = NULL;
 }
 
 static void post_app_specialize(void *self, const void *args) {
     (void)self;
     (void)args;
-    // No-op for app processes
+
+    if (g_state.api->set_option) {
+        g_state.api->set_option(g_state.api->impl, DLCLOSE_MODULE_LIBRARY);
+    }
+
+    g_state.api = NULL;
 }
 
 static void pre_server_specialize(void *self, void *args) {
