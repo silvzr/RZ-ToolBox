@@ -45,14 +45,10 @@
 
 typedef struct {
     struct rezygisk_api *api;
-    bool is_deny_listed;
-    int saved_ns_fd;
 } module_state_t;
 
 static module_state_t g_state = {
-    .api = NULL,
-    .is_deny_listed = false,
-    .saved_ns_fd = -1
+    .api = NULL
 };
 
 // ============================================================================
@@ -90,7 +86,6 @@ static int create_clean_mount_namespace(void) {
     }
 
     read_single_mount_entry();
-
     return 0;
 }
 
@@ -116,8 +111,8 @@ static void pre_app_specialize(void *self, void *args) {
         flags = g_state.api->get_flags();
     }
 
-    g_state.is_deny_listed = (flags & PROCESS_ON_DENYLIST) != 0;
-    if (!g_state.is_deny_listed) {
+    bool in_denylist = (flags & PROCESS_ON_DENYLIST) == PROCESS_ON_DENYLIST;
+    if (!in_denylist) {
         LOGD("App not on denylist, skipping mount fix");
         return;
     }
@@ -129,12 +124,6 @@ static void pre_app_specialize(void *self, void *args) {
         LOGE("Failed to create clean mount namespace");
     }
 
-}
-
-static void post_app_specialize(void *self, const void *args) {
-    (void)self;
-    (void)args;
-
     if (g_state.api->set_option) {
         g_state.api->set_option(g_state.api->impl, DLCLOSE_MODULE_LIBRARY);
     }
@@ -142,16 +131,22 @@ static void post_app_specialize(void *self, const void *args) {
     g_state.api = NULL;
 }
 
+static void post_app_specialize(void *self, const void *args) {
+    (void)self;
+    (void)args;
+    // No-op
+}
+
 static void pre_server_specialize(void *self, void *args) {
     (void)self;
     (void)args;
-    // No-op for system_server
+    // No-op
 }
 
 static void post_server_specialize(void *self, const void *args) {
     (void)self;
     (void)args;
-    // No-op for system_server
+    // No-op
 }
 
 // ============================================================================
