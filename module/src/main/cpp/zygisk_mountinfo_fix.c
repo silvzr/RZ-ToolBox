@@ -82,6 +82,26 @@ static const char *suspicious_patterns[] = {
     NULL
 };
 
+static const char *allowed_tmpfs_paths[] = {
+    "/dev",
+    "/dev/shm",
+    "/mnt",
+    "/mnt/secure",
+    "/mnt/asec",
+    "/mnt/obb",
+    "/apex",
+    NULL
+};
+
+static int is_allowed_tmpfs_path(const char *path) {
+    for (int i = 0; allowed_tmpfs_paths[i] != NULL; i++) {
+        if (strcmp(path, allowed_tmpfs_paths[i]) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static int is_suspicious_mount(const struct mntent *mnt) {
     if (!mnt || !mnt->mnt_dir || !mnt->mnt_fsname) {
         return 0;
@@ -98,6 +118,33 @@ static int is_suspicious_mount(const struct mntent *mnt) {
         if (strstr(mnt->mnt_fsname, pattern) != NULL) {
             LOGD("Suspicious mount source: %s (pattern: %s)", mnt->mnt_fsname, pattern);
             return 1;
+        }
+    }
+
+    if (mnt->mnt_type) {
+        if (strcmp(mnt->mnt_type, "overlay") == 0) {
+            LOGD("Found overlay mount: %s", mnt->mnt_dir);
+            return 1;
+        }
+        
+        if (mnt->mnt_opts && strstr(mnt->mnt_opts, "lowerdir=") != NULL) {
+            for (int i = 0; suspicious_patterns[i] != NULL; i++) {
+                if (strstr(mnt->mnt_opts, suspicious_patterns[i]) != NULL) {
+                    LOGD("Suspicious overlay opts: %s", mnt->mnt_opts);
+                    return 1;
+                }
+            }
+        }
+    }
+
+    if (mnt->mnt_type && strcmp(mnt->mnt_type, "tmpfs") == 0) {
+        if (!is_allowed_tmpfs_path(mnt->mnt_dir)) {
+            if (strstr(mnt->mnt_dir, "/sbin") != NULL ||
+                strstr(mnt->mnt_dir, "/.") != NULL ||
+                strstr(mnt->mnt_dir, "/debug_ramdisk") != NULL) {
+                LOGD("Suspicious tmpfs: %s", mnt->mnt_dir);
+                return 1;
+            }
         }
     }
 
