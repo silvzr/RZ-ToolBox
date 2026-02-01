@@ -10,9 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-#include <sched.h>
 #include <mntent.h>
-#include <sys/mount.h>
 #include <android/log.h>
 
 #include "zygisk.h"
@@ -30,14 +28,6 @@
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #endif
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-#ifndef CLONE_NEWNS
-#define CLONE_NEWNS 0x00020000
-#endif
 
 // ============================================================================
 // Module State
@@ -62,22 +52,9 @@ static void read_single_mount_entry(void) {
         return;
     }
 
-    struct mntent *entry = getmntent(mtab);
-
-    if (entry) {
-        LOGD("Mount entry: %s -> %s", entry->mnt_fsname, entry->mnt_dir);
-    } else {
-        LOGD("No mount entries found");
-    }
+    (void)getmntent(mtab);
 
     endmntent(mtab);
-}
-
-static int create_clean_mount_namespace(void) {
-    LOGD("Creating clean mount namespace");
-
-    read_single_mount_entry();
-    return 0;
 }
 
 // ============================================================================
@@ -110,9 +87,8 @@ static void pre_app_specialize(void *self, void *args) {
 
     LOGI("App is on denylist, applying mount namespace fix");
 
-    // Create clean mount namespace
-    if (create_clean_mount_namespace() != 0) {
-        LOGE("Failed to create clean mount namespace");
+    if (read_single_mount_entry() != 0) {
+        LOGE("Failed to intercept /proc/self/mounts");
     }
 
     if (g_state.api->set_option) {
